@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Perfect - AI Background Remover</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            background-image: radial-gradient(circle at 10% 20%, rgb(239, 246, 255) 0%, rgb(248, 250, 252) 90.1%);
+        }
+        .loader {
+            border-top-color: #4f46e5;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .checkerboard {
+            background-image: 
+                linear-gradient(45deg, #e0e0e0 25%, transparent 25%), 
+                linear-gradient(-45deg, #e0e0e0 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #e0e0e0 75%),
+                linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+        .transition-all {
+            transition: all 0.3s ease-in-out;
+        }
+        .drag-over {
+            transform: scale(1.02);
+            box-shadow: 0 0 0 4px rgb(59 130 246 / 0.5);
+        }
+        .scan-container {
+            position: relative;
+            overflow: hidden;
+            border-radius: 0.5rem;
+        }
+        .scan-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, transparent, rgba(79, 70, 229, 0.8), transparent);
+            box-shadow: 0 0 15px 5px rgba(79, 70, 229, 0.5);
+            animation: scan 2s ease-in-out infinite;
+            border-radius: 2px;
+        }
+        @keyframes scan {
+            from { transform: translateY(-100%); }
+            to { transform: translateY(calc(100% + 10px)); }
+        }
+        .upload-btn {
+            background-image: linear-gradient(to right, #4f46e5 0%, #818cf8 100%);
+            transition: opacity 0.2s ease;
+        }
+        .upload-btn:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div class="min-h-screen flex flex-col items-center justify-center p-4">
+        
+        <main id="app-container" class="bg-white rounded-2xl shadow-2xl p-6 md:p-8 w-full max-w-2xl transition-all">
+            
+            <!-- UPLOAD VIEW -->
+            <div id="upload-view">
+                <div class="text-center">
+                    <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 tracking-tight">
+                        Remove Image Background
+                    </h1>
+                    <p class="text-lg text-gray-600 mt-3">Maximum Accuracy & Quality</p>
+
+                    <div class="mt-8">
+                        <input type="file" id="image-input" class="hidden" accept="image/*">
+                        <label for="image-input" class="upload-btn cursor-pointer inline-flex items-center justify-center px-10 py-4 border border-transparent text-lg font-bold rounded-full text-white shadow-lg">
+                            Upload Image
+                        </label>
+                        <p class="mt-4 text-sm text-gray-500">or drop a file anywhere on this card</p>
+                    </div>
+
+                    <div class="mt-8">
+                        <p class="text-sm font-medium text-gray-500">No image? Try one of these:</p>
+                        <div class="flex justify-center items-center gap-2 mt-3">
+                            <img src="https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1" class="rounded-md cursor-pointer hover:opacity-80 transition-opacity w-20 h-12 object-cover" alt="Sample 1" onclick="useSample(this.src)">
+                            <img src="https://images.pexels.com/photos/3729464/pexels-photo-3729464.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1" class="rounded-md cursor-pointer hover:opacity-80 transition-opacity w-20 h-12 object-cover" alt="Sample 2" onclick="useSample(this.src)">
+                            <img src="https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1" class="rounded-md cursor-pointer hover:opacity-80 transition-opacity w-20 h-12 object-cover" alt="Sample 3" onclick="useSample(this.src)">
+                            <img src="https://images.pexels.com/photos/220357/pexels-photo-220357.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1" class="rounded-md cursor-pointer hover:opacity-80 transition-opacity w-20 h-12 object-cover" alt="Sample 4" onclick="useSample(this.src)">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PROCESSING VIEW -->
+            <div id="processing-view" class="hidden text-center py-8">
+                <div class="scan-container max-w-md mx-auto mb-6 bg-gray-100 shadow-inner">
+                    <img id="processing-image" src="" alt="Processing Image" class="w-full h-auto opacity-75">
+                    <div class="scan-line"></div>
+                </div>
+                <p id="status-text" class="text-gray-600 font-medium mt-4 text-lg">Scanning image...</p>
+            </div>
+
+            <!-- RESULT VIEW -->
+            <div id="result-view" class="hidden">
+                <div class="grid md:grid-cols-2 gap-8">
+                    <div>
+                        <h3 class="text-xl font-bold mb-4 text-center text-gray-800">Original</h3>
+                        <div class="bg-gray-100 rounded-lg overflow-hidden shadow-inner">
+                            <img id="original-image" src="" alt="Original Image" class="w-full h-auto object-contain max-h-[50vh]">
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold mb-4 text-center text-gray-800">Result</h3>
+                        <div id="result-wrapper" class="rounded-lg overflow-hidden shadow-inner checkerboard">
+                             <canvas id="result-canvas" class="w-full h-auto object-contain max-h-[50vh]"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-8">
+                    <div class="bg-gray-100 p-4 rounded-lg">
+                        <h4 class="font-semibold text-center mb-3">Change Background</h4>
+                        <div class="flex items-center justify-center flex-wrap gap-3">
+                            <button data-bg="transparent" class="bg-control checkerboard w-10 h-10 rounded-full border-2 border-indigo-500 ring-2 ring-indigo-500"></button>
+                            <button data-bg="#FFFFFF" class="bg-control w-10 h-10 rounded-full border-2 border-gray-300" style="background-color: #FFFFFF;"></button>
+                            <button data-bg="#000000" class="bg-control w-10 h-10 rounded-full border-2 border-gray-300" style="background-color: #000000;"></button>
+                            <button data-bg="#3b82f6" class="bg-control w-10 h-10 rounded-full border-2 border-gray-300" style="background-color: #3b82f6;"></button>
+                            <button data-bg="#22c55e" class="bg-control w-10 h-10 rounded-full border-2 border-gray-300" style="background-color: #22c55e;"></button>
+                            <div class="relative">
+                                <input type="color" id="color-picker" value="#CCCCCC" class="bg-control w-10 h-10 rounded-full border-2 border-gray-300 cursor-pointer opacity-0 absolute">
+                                <div id="color-picker-proxy" class="w-10 h-10 rounded-full border-2 border-gray-300" style="background-color: #CCCCCC;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-center mt-8 space-x-4">
+                    <button id="download-btn" class="upload-btn cursor-pointer inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-full text-white shadow-lg">
+                        Download
+                    </button>
+                     <button id="start-over-btn" class="cursor-pointer inline-flex items-center justify-center px-8 py-3 border border-gray-300 text-base font-medium rounded-full text-gray-700 bg-white hover:bg-gray-50 transition">
+                        Start Over
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // --- IMPORTANT: API KEY ---
+        const API_KEY = 'jeqHaepMmvtb3AnuTZXE3cYp'; 
+
+        // --- DOM Elements ---
+        const imageInput = document.getElementById('image-input');
+        const originalImage = document.getElementById('original-image');
+        const processingImage = document.getElementById('processing-image');
+        const resultCanvas = document.getElementById('result-canvas');
+        const canvasCtx = resultCanvas.getContext('2d');
+        const downloadBtn = document.getElementById('download-btn');
+        const startOverBtn = document.getElementById('start-over-btn');
+        const statusText = document.getElementById('status-text');
+        
+        const appContainer = document.getElementById('app-container');
+        const uploadView = document.getElementById('upload-view');
+        const processingView = document.getElementById('processing-view');
+        const resultView = document.getElementById('result-view');
+        
+        const resultWrapper = document.getElementById('result-wrapper');
+        const colorPicker = document.getElementById('color-picker');
+        const colorPickerProxy = document.getElementById('color-picker-proxy');
+
+        let originalFileName = '';
+        let originalFile = null;
+
+        // --- App State Management ---
+        function showView(viewName) {
+            uploadView.classList.add('hidden');
+            processingView.classList.add('hidden');
+            resultView.classList.add('hidden');
+            document.getElementById(`${viewName}-view`).classList.remove('hidden');
+        }
+
+        // --- Event Listeners ---
+        imageInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+        downloadBtn.addEventListener('click', downloadResult);
+        startOverBtn.addEventListener('click', () => showView('upload'));
+
+        appContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            appContainer.classList.add('drag-over');
+        });
+        appContainer.addEventListener('dragleave', () => appContainer.classList.remove('drag-over'));
+        appContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            appContainer.classList.remove('drag-over');
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        document.querySelectorAll('.bg-control').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const bg = e.currentTarget.dataset.bg;
+                updateBackgroundColor(bg);
+                document.querySelectorAll('.bg-control').forEach(btn => btn.classList.remove('ring-2', 'ring-indigo-500'));
+                e.currentTarget.classList.add('ring-2', 'ring-indigo-500');
+            });
+        });
+        
+        colorPicker.addEventListener('input', (e) => {
+            updateBackgroundColor(e.target.value);
+            colorPickerProxy.style.backgroundColor = e.target.value;
+        });
+
+        // --- Core Functions ---
+        function handleFile(file) {
+            if (!file || !file.type.startsWith('image/')) return;
+            
+            originalFile = file;
+            originalFileName = file.name.split('.').slice(0, -1).join('.') + '-no-bg.png';
+            
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const imageUrl = event.target.result;
+                originalImage.src = imageUrl;
+                processingImage.src = imageUrl;
+                processImage();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function useSample(imageUrl) {
+            showView('processing');
+            statusText.textContent = 'Downloading sample...';
+            try {
+                const response = await fetch(imageUrl);
+                if (!response.ok) throw new Error('Failed to fetch sample image.');
+                const blob = await response.blob();
+                handleFile(new File([blob], "sample.jpg", {type: "image/jpeg"}));
+            } catch (error) {
+                console.error('Sample image fetch error:', error);
+                alert('Failed to load sample image. Please try uploading a file directly.');
+                showView('upload');
+            }
+        }
+
+        async function processImage() {
+            if (API_KEY === 'INSERT_YOUR_API_KEY_HERE') {
+                alert('Please insert your remove.bg API key in the script.');
+                showView('upload');
+                return;
+            }
+
+            showView('processing');
+            statusText.textContent = 'Uploading to high-performance AI...';
+
+            const formData = new FormData();
+            formData.append('image_file', originalFile);
+            formData.append('size', 'auto');
+
+            try {
+                const response = await fetch('https://api.remove.bg/v1.0/removebg', {
+                    method: 'POST',
+                    headers: {
+                        'X-Api-Key': API_KEY
+                    },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.errors?.[0]?.title || 'An unknown error occurred.');
+                }
+                
+                statusText.textContent = 'Processing complete. Drawing result...';
+                const imageBlob = await response.blob();
+                const imageUrl = URL.createObjectURL(imageBlob);
+
+                const img = new Image();
+                img.onload = () => {
+                    resultCanvas.width = img.width;
+                    resultCanvas.height = img.height;
+                    canvasCtx.drawImage(img, 0, 0);
+                    URL.revokeObjectURL(imageUrl);
+                    showView('result');
+                };
+                img.src = imageUrl;
+
+            } catch (error) {
+                alert(`An error occurred: ${error.message}`);
+                showView('upload');
+            }
+        }
+        
+        function updateBackgroundColor(bg) {
+            if (bg === 'transparent') {
+                resultWrapper.classList.add('checkerboard');
+                resultWrapper.style.backgroundColor = '';
+            } else {
+                resultWrapper.classList.remove('checkerboard');
+                resultWrapper.style.backgroundColor = bg;
+            }
+        }
+
+        function downloadResult() {
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = resultCanvas.width;
+            tempCanvas.height = resultCanvas.height;
+            
+            if (!resultWrapper.classList.contains('checkerboard')) {
+                tempCtx.fillStyle = resultWrapper.style.backgroundColor;
+                tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+            }
+            
+            tempCtx.drawImage(resultCanvas, 0, 0);
+
+            const link = document.createElement('a');
+            link.download = originalFileName;
+            link.href = tempCanvas.toDataURL('image/png');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
